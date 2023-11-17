@@ -2,16 +2,20 @@
 class_name Fbm3sEngine
 extends Node
 
+## How hard drops behave.
 enum HardDropBehavior {
-    NONE,
-    FIRM_DROP,
-    HARD_DROP,
+	NONE, ## The hard drop mechanic is disabled.
+	FIRM_DROP, ## Hard drops do not lock down instantly.
+	HARD_DROP, ## Hard drops instantly lock down.
 }
+## How the lock timer behaves once the triad hits the bottom.
+##
+## For all options besides INSTANT_LOCK, the timer is paused if the falling triad has empty space below it.
 enum LockTimerBehavior {
-    INSTANT_LOCK,
-    MOVE_RESET,
-    GRAV_RESET,
-    ENTRY_RESET,
+	INSTANT_LOCK, ## The triad instantly locks when hitting bottom.
+	MOVE_RESET, ## The lock timer resets whenever any move is made.
+	GRAV_RESET, ## The lock timer resets when the triad drops down a row.
+	ENTRY_RESET, ## The lock timer resets when a new triad enters the playfield.
 }
 @export_group("Layout")
 @export var field_size := Vector2i(6,12)
