@@ -1,4 +1,4 @@
 class_name Fbm3sBlock
-extends Node2D
+extends Sprite2D
 
 var kind: int

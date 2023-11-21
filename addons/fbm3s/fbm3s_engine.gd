@@ -57,17 +57,24 @@ func _ready():
 	#check for playfield scene child here.
 	var test_block_scene = block_scene.instantiate() as Fbm3sBlock
 	if test_block_scene == null:
-		push_error("Fbm3sEngine: Fbm3sBlock PackScene doesn't exist or is invalid. Bailing out.")
+		push_error("Fbm3sEngine: Fbm3sBlock PackedScene doesn't exist or is invalid. Bailing out.")
 		return
 	if sequence_generator == null:
-		push_error("Fbm3sEngine: No SequenceGenerator defined. Bailing out.")
-		return
+		push_warning("Fbm3sEngine: No SequenceGenerator defined. Using default.")
+		sequence_generator = SequenceGenerator.new()
+	
+	#We all good?
 
 
 func _set_up_array():
-	var result = []
-	for i in field_size.x:
-		result.append([])
-		for j in field_size.y:
-			result[i].append(null)
-	return result
+	if field_size.x > 4 and field_size.y > 4:
+		var result = []
+		result.resize(field_size.x)
+		var column = []
+		column.resize(field_size.y)
+		result.fill(column)
+		print("made empty playfield of size ", field_size.x, " x ", field_size.y)
+		return result
+	else:
+		push_error("Playfield too small, bailing out.")
+		return null

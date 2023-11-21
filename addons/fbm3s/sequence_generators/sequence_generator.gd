@@ -9,3 +9,6 @@ func get_sequence(length: int) -> Array[int]:
 	for i in length:
 		result.append(randi() % kinds_count)
 	return result
+
+func reset_sequence():
+	pass

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://djap1uuhl7gax"]
+
+[ext_resource type="Script" path="res://addons/fbm3s/fbm3s_block.gd" id="1_uw0q0"]
+
+[node name="fbm3s_block" type="Sprite2D"]
+script = ExtResource("1_uw0q0")
