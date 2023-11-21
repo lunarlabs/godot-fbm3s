@@ -69,8 +69,10 @@ func _ready():
 	_block_matrix = _set_up_array()
 	if _block_matrix == null:
 		return
-		#We all good?
-
+		
+	#We all good?
+	sequence_generator.kinds_count = tile_kinds
+	sequence_generator.reset_sequence()
 
 func _set_up_array():
 	if field_size.x > 4 and field_size.y > 4:
@@ -84,3 +86,19 @@ func _set_up_array():
 	else:
 		push_error("Playfield too small, bailing out.")
 		return null
+
+func _set_up_timers():
+	grav_timer.connect("timeout", Callable(self, "_drop_cursor"))
+	grav_timer.one_shot = true
+	grav_timer.wait_time = gravity_time
+	add_child(grav_timer)
+	
+	lock_timer.connect("timeout", Callable(self, "_lock_down"))
+	lock_timer.one_shot = true
+	lock_timer.wait_time = lock_time
+	add_child(lock_timer)
+	
+	flash_timer.connect("timeout", Callable(self, "_pop_gems"))
+	flash_timer.one_shot = true
+	flash_timer.wait_time = flash_time
+	add_child(flash_timer)
