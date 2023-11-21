@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://7dph5w7h1wkr"]
+
+[ext_resource type="Script" path="res://addons/fbm3s/fbm3s_engine.gd" id="1_1rtv2"]
+
+[node name="Fbm3sEngine" type="Node2D"]
+script = ExtResource("1_1rtv2")

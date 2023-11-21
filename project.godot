@@ -13,7 +13,3 @@ config_version=5
 config/name="Falling Blocks Match Three System"
 config/features=PackedStringArray("4.1", "Mobile")
 config/icon="res://icon.svg"
-
-[rendering]
-
-renderer/rendering_method="mobile"

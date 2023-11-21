@@ -1,6 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://djap1uuhl7gax"]
+[gd_scene load_steps=4 format=3 uid="uid://djap1uuhl7gax"]
 
 [ext_resource type="Script" path="res://addons/fbm3s/fbm3s_block.gd" id="1_uw0q0"]
+[ext_resource type="Texture2D" uid="uid://dtb0qvchctpe7" path="res://addons/fbm3s/kenney2.png" id="1_x2vkt"]
 
-[node name="fbm3s_block" type="Sprite2D"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_iyop7"]
+atlas = ExtResource("1_x2vkt")
+region = Rect2(0, 0, 64, 64)
+
+[node name="Fbm3sBlock" type="Sprite2D"]
+texture = SubResource("AtlasTexture_iyop7")
 script = ExtResource("1_uw0q0")

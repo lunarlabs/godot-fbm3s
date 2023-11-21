@@ -7,6 +7,8 @@ extends Node
 ## Fbm3sEngine handles the primary gameplay loop of FBM3S, including placement
 ## of blocks, timer control, match logic, and queue handling.
 
+signal match_made(gems, combo)
+signal combo_ended()
 ## How hard drops behave.
 enum HardDropBehavior {
 	NONE, ## The hard drop mechanic is disabled.
@@ -22,9 +24,11 @@ enum LockTimerBehavior {
 	GRAV_RESET, ## The lock timer resets when the triad drops down a row.
 	ENTRY_RESET, ## The lock timer resets when a new triad enters the playfield.
 }
-@export_group("Layout")
+@export_group("Layout and Appearance")
 ##The size of the playfield, in tiles
 @export var field_size := Vector2i(6,12)
+##The texture of the blocks, in a single file
+@export var tile_texture_atlas: Texture2D = preload("res://addons/fbm3s/kenney2.png")
 ##The size of each square tile, in pixels
 @export_range(16,128,16,"suffix:px") var tile_size = 64
 @export_group("Gameplay")
@@ -62,8 +66,10 @@ func _ready():
 	if sequence_generator == null:
 		push_warning("Fbm3sEngine: No SequenceGenerator defined. Using default.")
 		sequence_generator = SequenceGenerator.new()
-	
-	#We all good?
+	_block_matrix = _set_up_array()
+	if _block_matrix == null:
+		return
+		#We all good?
 
 
 func _set_up_array():
@@ -72,7 +78,7 @@ func _set_up_array():
 		result.resize(field_size.x)
 		var column = []
 		column.resize(field_size.y)
-		result.fill(column)
+		result.fill(column.duplicate())
 		print("made empty playfield of size ", field_size.x, " x ", field_size.y)
 		return result
 	else:
