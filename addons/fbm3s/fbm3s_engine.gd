@@ -69,7 +69,6 @@ func _ready():
 	_block_matrix = _set_up_array()
 	if _block_matrix == null:
 		return
-		
 	#We all good?
 	sequence_generator.kinds_count = tile_kinds
 	sequence_generator.reset_sequence()
