@@ -7,8 +7,13 @@ extends Node
 ## Fbm3sEngine handles the primary gameplay loop of FBM3S, including placement
 ## of blocks, timer control, match logic, and queue handling.
 
+## Emitted when a match is made.
 signal match_made(gems, combo)
+## Emitted after a cascade which does not result in a match.
 signal combo_ended()
+## Emitted when topping out (blocks reached the top of the matrix.)
+signal top_out()
+
 ## How hard drops behave.
 enum HardDropBehavior {
 	NONE, ## The hard drop mechanic is disabled.
@@ -25,26 +30,40 @@ enum LockTimerBehavior {
 	ENTRY_RESET, ## The lock timer resets when a new triad enters the playfield.
 }
 @export_group("Layout and Appearance")
-##The size of the playfield, in tiles
+## The size of the playfield, in tiles
 @export var field_size := Vector2i(6,12)
-##The texture of the blocks, in a single file
+## The texture of the blocks, in a single file
 @export var tile_texture_atlas: Texture2D = preload("res://addons/fbm3s/kenney2.png")
-##The size of each square tile, in pixels
+## The size of each square tile, in pixels
 @export_range(16,128,16,"suffix:px") var tile_size = 64
 @export_group("Gameplay")
+## The scene file for the blocks.
 @export var block_scene: PackedScene
+## How many types of blocks in use.
 @export_range(4,8) var tile_kinds = 6
+## If [code]true[/code], will check for matches diagonally.
 @export var allow_diagonal_matches := true
 @export_subgroup("Sequence Generation")
+## The random sequence generator to use.
 @export var sequence_generator: SequenceGenerator
+## How many triads are shown in the next queue.
 @export_range(1,4,1,"suffix:triads") var next_queue_length = 1
 @export_subgroup("Dropping and Locking")
+## Whether or not soft dropping (temporarily doubling gravity while the input is held)
+## is allowed.
 @export var use_soft_drop := true
+## The behavior of hard drops.
 @export var hard_drop_style := HardDropBehavior.HARD_DROP
+## How the lockdown timer behaves.
 @export var lockdown_style := LockTimerBehavior.GRAV_RESET
 @export_subgroup("Timers")
+## Time it takes for the triad to drop down a single row from gravity.
 @export_range(0.05, 1.5, 0.05, "suffix:s") var gravity_time = 0.75
+## The time that the triad can still move and rotate after hitting bottom.
+## Ignored if Lockdown Style is Instant Lock.
 @export_range(0.05, 0.1, 0.01, "suffix:s") var lock_time = 0.1
+## How long after a match until the blocks cascade and another match check is made.
+## This should cover the blocks' flashing and disappearing animations.
 @export_range(0.5, 5, 0.1, "suffix:s") var flash_time = 1
 
 var grav_timer = Timer.new()
@@ -69,7 +88,7 @@ func _ready():
 	_block_matrix = _set_up_array()
 	if _block_matrix == null:
 		return
-	#We all good?
+	_set_up_timers()
 	sequence_generator.kinds_count = tile_kinds
 	sequence_generator.reset_sequence()
 
@@ -80,13 +99,14 @@ func _set_up_array():
 		var column = []
 		column.resize(field_size.y)
 		result.fill(column.duplicate())
-		print("made empty playfield of size ", field_size.x, " x ", field_size.y)
+		print("made empty playfield matrix of size ", field_size.x, " x ", field_size.y)
 		return result
 	else:
 		push_error("Playfield too small, bailing out.")
 		return null
 
 func _set_up_timers():
+	print("setting up timers")
 	grav_timer.connect("timeout", Callable(self, "_drop_cursor"))
 	grav_timer.one_shot = true
 	grav_timer.wait_time = gravity_time
