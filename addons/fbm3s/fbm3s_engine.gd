@@ -4,12 +4,18 @@ extends Node
 
 ## FBM3S playfield controller.
 ##
-## Fbm3sEngine handles the primary gameplay loop of FBM3S, including placement
-## of blocks, timer control, match logic, and queue handling.
+## Fbm3sEngine handles the primary gameplay loop of a FBM3S matrix, including 
+## placement of blocks, timer control, match logic, and randominzer queue handling. 
+## Functions relating to scoring, input, etc. should be handled by the parent
+## node of Fbm3sEngine.
+##
+## @tutorial: https://github.com/lunarlabs/godot-fbm3s/wiki
 
+## Emitted when the triad goes down a row when soft drop is on.
+signal soft_drop_row()
 ## Emitted when a match is made.
-signal match_made(blocks, combo)
-## Emitted after a cascade which does not result in a match.
+signal match_made(blocks: int, combo: int)
+## Emitted after a cascade which does not result in a match after a combo.
 signal combo_ended()
 ## Emitted when topping out (blocks reached the top of the matrix.)
 signal top_out()
@@ -25,9 +31,9 @@ enum HardDropBehavior {
 ## For all options besides INSTANT_LOCK, the timer is paused if the falling triad has empty space below it.
 enum LockTimerBehavior {
 	INSTANT_LOCK, ## The triad instantly locks when hitting bottom.
-	MOVE_RESET, ## The lock timer resets whenever any move is made.
-	GRAV_RESET, ## The lock timer resets when the triad drops down a row.
 	ENTRY_RESET, ## The lock timer resets when a new triad enters the playfield.
+	GRAV_RESET, ## The lock timer resets when the triad drops down a row.
+	MOVE_RESET, ## The lock timer resets whenever any move is made.
 }
 enum CursorSpawnRow{
 	ABOVE_TOP_ROW, ## The triad spawns above the matrix.
@@ -38,6 +44,10 @@ enum TopOutMode{
 	ALL_OUTSIDE, ## Topping out occurs when no blocks in the triad can be placed inside the matrix.
 					## Blocks over the matrix's top edge are deleted.
 	ANY_OUTSIDE, ## Topping out occurs when any block in the triad is placed outside the matrix.
+}
+enum Direction{
+	LEFT = -1,
+	RIGHT = 1
 }
 const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 
@@ -81,10 +91,10 @@ const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 ## How long after a match until the blocks cascade and another match check is made.
 ## This should cover the blocks' flashing and disappearing animations.
 @export_range(0.5, 5, 0.1, "suffix:s") var flash_time = 1
-## The delay before a new triad spawns.
-@export_range(0.05, 0.1, 0.01, "suffix:s") var interval_time = 0.1
+## The delay between phases.
+@export_range(0.05, 0.1, 0.01, "suffix:s") var interval_time = 0.06
 
-var _block_scene
+var _block_scene: PackedScene
 var _grav_timer = Timer.new()
 var _lock_timer = Timer.new()
 var _flash_timer = Timer.new()
@@ -94,6 +104,10 @@ var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
 var _current_triad = []
 var _next_queue = []
+var _is_soft_dropping := false
+var _before_triad_entry: Callable
+var _before_match_check: Callable
+var _before_flash: Callable
 
 func _ready():
 	#sanity check time!
@@ -125,6 +139,66 @@ func _ready():
 	# All the dependency checks passed? Good, let's go on
 	_set_up_timers()
 	_reset_next_queue()
+
+## Gets an [AtlasTexture] representing the block with the kind [param which].
+func get_block_texture(which: int) -> AtlasTexture:
+	var result := AtlasTexture.new()
+	result.atlas = tile_texture_atlas
+	result.region = Rect2(which * tile_size, 0, tile_size, tile_size)
+	return result
+
+func get_next_queue() -> Array:
+	return _next_queue
+
+func get_timers() -> Dictionary:
+	var result = {
+		"grav": _grav_timer.time_left,
+		"lock": _lock_timer.time_left,
+		"flash": _flash_timer.time_left,
+		"interval": _interval_timer.time_left,
+	}
+	return result
+
+func slide_cursor(what_dir: Direction) -> bool:
+	return false
+
+func start_soft_drop():
+	if use_soft_drop:
+		_is_soft_dropping = true
+
+func stop_soft_drop():
+	_is_soft_dropping = false
+
+func hard_drop():
+	if hard_drop_style != HardDropBehavior.NONE:
+		pass
+
+func reset_matrix(reset_queue := false):
+	_block_matrix = _set_up_array()
+	get_tree().call_group("blocks", "queue_free")
+	if reset_queue:
+		_reset_next_queue()
+
+func put_block_at(which: int, where: Vector2i, clobber = false) -> bool:
+	if where < field_size:
+		if _block_matrix[where.x][where.y] == null:
+			var new_block = _block_scene.instantiate() as Fbm3sBlock
+			_block_matrix[where.x][where.y] = new_block
+			new_block.kind = which
+			new_block.texture = get_block_texture(which)
+			_playfield.add_child(new_block)
+			new_block.position = _playfield.tile_to_pixel(where)
+			new_block.add_to_group("blocks")
+			return true
+		elif clobber:
+			_block_matrix[where.x][where.y].texture = get_block_texture(which)
+			_block_matrix[where.x][where.y].kind = which
+			return true
+		else:
+			return false
+	else:
+		return false
+			
 
 func _set_up_array():
 	if field_size.x > 4 and field_size.y > 4:
@@ -173,31 +247,35 @@ func _check_for_matches():
 	for i in field_size.x:
 		for j in field_size.y:
 			if _block_matrix[i][j] != null:
-				var _not_on_horiz_edge = i > 0 && i < (field_size.x - 1)
-				var _not_on_vert_edge = j > 0 && j < (field_size.y - 1)
+				var _not_on_horiz_edge = i > 0 and i < (field_size.x - 1)
+				var _not_on_vert_edge = j > 0 and j < (field_size.y - 1)
 				var current_kind = _block_matrix[i][j].kind
 				if _not_on_horiz_edge:
-					if _block_matrix[i-1][j] != null && _block_matrix[i+1][j] != null:
-						if _block_matrix[i-1][j].kind == current_kind && _block_matrix[i+1][j].kind == current_kind:
+					if _block_matrix[i-1][j] != null and _block_matrix[i+1][j] != null:
+						if _block_matrix[i-1][j].kind == current_kind \
+						and _block_matrix[i+1][j].kind == current_kind:
 							_block_matrix[i-1][j].add_to_group("matched")
 							_block_matrix[i][j].add_to_group("matched")
 							_block_matrix[i+1][j].add_to_group("matched")
 
 				if _not_on_vert_edge:
-					if _block_matrix[i][j-1] != null && _block_matrix[i][j+1] != null:
-						if _block_matrix[i][j-1].kind == current_kind && _block_matrix[i][j+1].kind == current_kind:
+					if _block_matrix[i][j-1] != null and _block_matrix[i][j+1] != null:
+						if _block_matrix[i][j-1].kind == current_kind \
+						and _block_matrix[i][j+1].kind == current_kind:
 							_block_matrix[i][j-1].add_to_group("matched")
 							_block_matrix[i][j].add_to_group("matched")
 							_block_matrix[i][j+1].add_to_group("matched")
 
 				if _not_on_horiz_edge and _not_on_vert_edge and allow_diagonal_matches:
 					if _block_matrix[i-1][j-1] != null && _block_matrix[i+1][j+1] != null:
-						if _block_matrix[i-1][j-1].kind == current_kind && _block_matrix[i+1][j+1].kind == current_kind:
+						if _block_matrix[i-1][j-1].kind == current_kind \
+						  and _block_matrix[i+1][j+1].kind == current_kind:
 							_block_matrix[i-1][j-1].add_to_group("matched")
 							_block_matrix[i][j].add_to_group("matched")
 							_block_matrix[i+1][j+1].add_to_group("matched")
 					if _block_matrix[i+1][j-1] != null && _block_matrix[i-1][j+1] != null:
-						if _block_matrix[i+1][j-1].kind == current_kind && _block_matrix[i-1][j+1].kind == current_kind:
+						if _block_matrix[i+1][j-1].kind == current_kind \
+						  and _block_matrix[i-1][j+1].kind == current_kind:
 							_block_matrix[i+1][j-1].add_to_group("matched")
 							_block_matrix[i][j].add_to_group("matched")
 							_block_matrix[i-1][j+1].add_to_group("matched")
