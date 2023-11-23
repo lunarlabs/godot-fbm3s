@@ -4,7 +4,10 @@
 [ext_resource type="Script" path="res://addons/fbm3s/fbm3s_playfield.gd" id="2_8sma5"]
 
 [node name="Fbm3sEngine" type="Node2D"]
+process_mode = 1
 script = ExtResource("1_1rtv2")
+field_size = Vector2i(7, 13)
+next_queue_length = 3
 
 [node name="Node2D" type="Node2D" parent="."]
 script = ExtResource("2_8sma5")

@@ -21,7 +21,8 @@ func _draw():
 		var start: Vector2
 		for i in _playfield_size.x:
 			for j in _playfield_size.y:
-				paint = Color.WHITE if (i % 2) ^ (j % 2) else Color.BLACK
+				paint = Color.LIGHT_SLATE_GRAY if (i % 2) ^ (j % 2) \
+				  else Color.DARK_SLATE_GRAY
 				start = _origin + Vector2(i * _tile_size, j * _tile_size)
 				area = Rect2(start, size)
 				draw_rect(area, paint)
@@ -38,5 +39,5 @@ func get_origin():
 	return _origin
 
 func tile_to_pixel(where: Vector2i):
-	return _origin + (where * _tile_size)
+	return _origin + Vector2(where * _tile_size)
 	

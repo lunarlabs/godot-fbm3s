@@ -6,7 +6,7 @@ extends SequenceGenerator
 var _sequence = []
 
 func get_sequence(length: int) -> Array[int]:
-	var result = []
+	var result: Array[int] = []
 	assert(kinds_count > 0, "Don't use a non-positive kinds_count, doofus!")
 	if length > 0:
 		if length > _sequence.size():

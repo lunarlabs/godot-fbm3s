@@ -49,6 +49,7 @@ enum Direction{
 	LEFT = -1,
 	RIGHT = 1
 }
+## The path to the built-in block packed scene.
 const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 
 @export_group("Layout and Appearance")
@@ -70,7 +71,8 @@ const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 ## What counts as a top out.
 @export var top_out_when = TopOutMode.ANY_OUTSIDE
 @export_subgroup("Sequence Generation")
-## The random sequence generator to use.
+## The random sequence generator to use. 
+## If empty, the default SequenceGenerator will be used at runtime.
 @export var sequence_generator: SequenceGenerator
 ## How many triads are shown in the next queue.
 @export_range(1,4,1,"suffix:triads") var next_queue_length = 1
@@ -92,7 +94,7 @@ const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 ## This should cover the blocks' flashing and disappearing animations.
 @export_range(0.5, 5, 0.1, "suffix:s") var flash_time = 1
 ## The delay between phases.
-@export_range(0.05, 0.1, 0.01, "suffix:s") var interval_time = 0.06
+@export_range(0.05, 0.1, 0.01, "suffix:s") var interval_time = 0.07
 
 var _block_scene: PackedScene
 var _grav_timer = Timer.new()
@@ -102,6 +104,7 @@ var _interval_timer = Timer.new()
 var _block_matrix = []
 var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
+var _cursor := Cursor.new(tile_size)
 var _current_triad = []
 var _next_queue = []
 var _is_soft_dropping := false
@@ -137,6 +140,7 @@ func _ready():
 	if _block_matrix == null:
 		return
 	# All the dependency checks passed? Good, let's go on
+	add_child(_cursor)
 	_set_up_timers()
 	_reset_next_queue()
 
@@ -146,6 +150,9 @@ func get_block_texture(which: int) -> AtlasTexture:
 	result.atlas = tile_texture_atlas
 	result.region = Rect2(which * tile_size, 0, tile_size, tile_size)
 	return result
+
+func get_current_triad() -> Array:
+	return _current_triad
 
 func get_next_queue() -> Array:
 	return _next_queue
@@ -162,6 +169,14 @@ func get_timers() -> Dictionary:
 func slide_cursor(what_dir: Direction) -> bool:
 	return false
 
+func rotate_triad_down():
+	_current_triad.push_front(_current_triad.pop_back())
+	_update_cursor()
+
+func rotate_triad_up():
+	_current_triad.push_back(_current_triad.pop_front())
+	_update_cursor()
+
 func start_soft_drop():
 	if use_soft_drop:
 		_is_soft_dropping = true
@@ -169,9 +184,25 @@ func start_soft_drop():
 func stop_soft_drop():
 	_is_soft_dropping = false
 
-func hard_drop():
+func hard_drop() -> int:
 	if hard_drop_style != HardDropBehavior.NONE:
-		pass
+		return 0
+	else:
+		var column = _block_matrix[_cursor_location.x]
+		var lowest = column.find(Node)
+		var target = lowest - 1 if (lowest >= 0) else field_size.y - 1
+		var result = target - _cursor_location.y
+		_cursor_location.y = target
+		match hard_drop_style:
+			HardDropBehavior.FIRM_DROP:
+				_activate_lockdown_timer()
+			HardDropBehavior.HARD_DROP:
+				_lock_down()
+		return result
+
+func start_game():
+	_spawn_triad()
+	_grav_timer.start()
 
 func reset_matrix(reset_queue := false):
 	_block_matrix = _set_up_array()
@@ -243,6 +274,35 @@ func _reset_next_queue():
 	for i in next_queue_length:
 		_next_queue.push_front(sequence_generator.get_sequence(3))
 
+func _spawn_triad():
+	var middle = floor(field_size.x / 2.0)
+	if _block_matrix[middle][0] == null:
+		if _before_triad_entry.is_valid():
+			_before_triad_entry.call()
+		_cursor_location.y = -1 if triad_entry_row == CursorSpawnRow.ABOVE_TOP_ROW \
+		  else 0
+		_cursor_location.x = middle
+		_update_cursor()
+		_cursor.show()
+	else:
+		emit_signal("top_out")
+
+func _advance_triad():
+	_current_triad = _next_queue.pop_back()
+	_next_queue.push_front(sequence_generator.get_sequence(3))
+
+func _update_cursor():
+	_cursor.top_sprite.texture = get_block_texture(_current_triad[0])
+	_cursor.mid_sprite.texture = get_block_texture(_current_triad[1])
+	_cursor.bottom_sprite.texture = get_block_texture(_current_triad[2])
+	_cursor.position = _playfield.tile_to_pixel(_cursor_location)
+
+func _activate_lockdown_timer():
+	pass
+
+func _lock_down():
+	pass
+
 func _check_for_matches():
 	for i in field_size.x:
 		for j in field_size.y:
@@ -279,3 +339,21 @@ func _check_for_matches():
 							_block_matrix[i+1][j-1].add_to_group("matched")
 							_block_matrix[i][j].add_to_group("matched")
 							_block_matrix[i-1][j+1].add_to_group("matched")
+
+class Cursor extends Node2D:
+	var top_sprite = Sprite2D.new()
+	var mid_sprite = Sprite2D.new()
+	var bottom_sprite = Sprite2D.new()
+	var tile_size: int
+	
+	func _init(ts: int):
+		tile_size = ts
+		top_sprite.centered = false
+		mid_sprite.centered = false
+		bottom_sprite.centered = false
+		add_child(top_sprite)
+		add_child(mid_sprite)
+		add_child(bottom_sprite)
+		mid_sprite.position = Vector2i(0, -1 * tile_size)
+		top_sprite.position = Vector2i(0, -2 * tile_size)
+		visible = false
