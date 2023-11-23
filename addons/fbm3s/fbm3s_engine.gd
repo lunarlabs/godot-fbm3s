@@ -8,7 +8,7 @@ extends Node
 ## of blocks, timer control, match logic, and queue handling.
 
 ## Emitted when a match is made.
-signal match_made(gems, combo)
+signal match_made(blocks, combo)
 ## Emitted after a cascade which does not result in a match.
 signal combo_ended()
 ## Emitted when topping out (blocks reached the top of the matrix.)
@@ -29,6 +29,18 @@ enum LockTimerBehavior {
 	GRAV_RESET, ## The lock timer resets when the triad drops down a row.
 	ENTRY_RESET, ## The lock timer resets when a new triad enters the playfield.
 }
+enum CursorSpawnRow{
+	ABOVE_TOP_ROW, ## The triad spawns above the matrix.
+	ON_TOP_ROW, ## The triad spawns with its bottommost block on the first row.
+}
+## What defines topping out.
+enum TopOutMode{
+	ALL_OUTSIDE, ## Topping out occurs when no blocks in the triad can be placed inside the matrix.
+					## Blocks over the matrix's top edge are deleted.
+	ANY_OUTSIDE, ## Topping out occurs when any block in the triad is placed outside the matrix.
+}
+const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
+
 @export_group("Layout and Appearance")
 ## The size of the playfield, in tiles
 @export var field_size := Vector2i(6,12)
@@ -38,11 +50,15 @@ enum LockTimerBehavior {
 @export_range(16,128,16,"suffix:px") var tile_size = 64
 @export_group("Gameplay")
 ## The scene file for the blocks.
-@export var block_scene: PackedScene
+@export_file("*.tscn") var block_scene_path = DEFAULT_BLOCK_SCENE
 ## How many types of blocks in use.
 @export_range(4,8) var tile_kinds = 6
 ## If [code]true[/code], will check for matches diagonally.
 @export var allow_diagonal_matches := true
+## The row where new triads spawn.
+@export var triad_entry_row = CursorSpawnRow.ON_TOP_ROW
+## What counts as a top out.
+@export var top_out_when = TopOutMode.ANY_OUTSIDE
 @export_subgroup("Sequence Generation")
 ## The random sequence generator to use.
 @export var sequence_generator: SequenceGenerator
@@ -66,24 +82,39 @@ enum LockTimerBehavior {
 ## This should cover the blocks' flashing and disappearing animations.
 @export_range(0.5, 5, 0.1, "suffix:s") var flash_time = 1
 
-var grav_timer = Timer.new()
-var lock_timer = Timer.new()
-var flash_timer = Timer.new()
-
+var _block_scene
+var _grav_timer = Timer.new()
+var _lock_timer = Timer.new()
+var _flash_timer = Timer.new()
 var _block_matrix = []
+var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
 var _current_triad = []
 var _next_queue = []
 
 func _ready():
 	#sanity check time!
-	#check for playfield scene child here.
-	var test_block_scene = block_scene.instantiate() as Fbm3sBlock
+	for n in get_children():
+		if n is Fbm3sPlayfield:
+			if _playfield == null:
+				_playfield = n
+			else:
+				push_warning("Removing extraneous playfield.")
+				n.queue_free()
+	if _playfield == null:
+		push_warning("No Playfield child. Using default.")
+		_playfield = Fbm3sPlayfield.new()
+		add_child(_playfield)
+	_playfield.setup(field_size, tile_size)
+	_block_scene = load(block_scene_path)
+	var test_block_scene = _block_scene.instantiate() as Fbm3sBlock
 	if test_block_scene == null:
-		push_error("Fbm3sEngine: Fbm3sBlock PackedScene doesn't exist or is invalid. Bailing out.")
-		return
+		push_error("Fbm3sBlock PackedScene doesn't exist or is invalid. Using default.")
+		_block_scene = load(DEFAULT_BLOCK_SCENE)
+	else:
+		test_block_scene.queue_free()
 	if sequence_generator == null:
-		push_warning("Fbm3sEngine: No SequenceGenerator defined. Using default.")
+		push_warning("No SequenceGenerator defined. Using default.")
 		sequence_generator = SequenceGenerator.new()
 	_block_matrix = _set_up_array()
 	if _block_matrix == null:
@@ -107,17 +138,17 @@ func _set_up_array():
 
 func _set_up_timers():
 	print("setting up timers")
-	grav_timer.connect("timeout", Callable(self, "_drop_cursor"))
-	grav_timer.one_shot = true
-	grav_timer.wait_time = gravity_time
-	add_child(grav_timer)
+	_grav_timer.connect("timeout", Callable(self, "_drop_cursor"))
+	_grav_timer.one_shot = true
+	_grav_timer.wait_time = gravity_time
+	add_child(_grav_timer)
 	
-	lock_timer.connect("timeout", Callable(self, "_lock_down"))
-	lock_timer.one_shot = true
-	lock_timer.wait_time = lock_time
-	add_child(lock_timer)
+	_lock_timer.connect("timeout", Callable(self, "_lock_down"))
+	_lock_timer.one_shot = true
+	_lock_timer.wait_time = lock_time
+	add_child(_lock_timer)
 	
-	flash_timer.connect("timeout", Callable(self, "_pop_gems"))
-	flash_timer.one_shot = true
-	flash_timer.wait_time = flash_time
-	add_child(flash_timer)
+	_flash_timer.connect("timeout", Callable(self, "_pop_blocks"))
+	_flash_timer.one_shot = true
+	_flash_timer.wait_time = flash_time
+	add_child(_flash_timer)

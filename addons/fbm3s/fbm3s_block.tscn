@@ -9,4 +9,5 @@ region = Rect2(0, 0, 64, 64)
 
 [node name="Fbm3sBlock" type="Sprite2D"]
 texture = SubResource("AtlasTexture_iyop7")
+centered = false
 script = ExtResource("1_uw0q0")
