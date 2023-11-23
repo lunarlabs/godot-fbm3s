@@ -77,15 +77,18 @@ const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 @export_range(0.05, 1.5, 0.05, "suffix:s") var gravity_time = 0.75
 ## The time that the triad can still move and rotate after hitting bottom.
 ## Ignored if Lockdown Style is Instant Lock.
-@export_range(0.05, 0.1, 0.01, "suffix:s") var lock_time = 0.1
+@export_range(0.05, 0.25, 0.01, "suffix:s") var lock_time = 0.1
 ## How long after a match until the blocks cascade and another match check is made.
 ## This should cover the blocks' flashing and disappearing animations.
 @export_range(0.5, 5, 0.1, "suffix:s") var flash_time = 1
+## The delay before a new triad spawns.
+@export_range(0.05, 0.1, 0.01, "suffix:s") var interval_time = 0.1
 
 var _block_scene
 var _grav_timer = Timer.new()
 var _lock_timer = Timer.new()
 var _flash_timer = Timer.new()
+var _interval_timer = Timer.new()
 var _block_matrix = []
 var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
@@ -119,9 +122,9 @@ func _ready():
 	_block_matrix = _set_up_array()
 	if _block_matrix == null:
 		return
+	# All the dependency checks passed? Good, let's go on
 	_set_up_timers()
-	sequence_generator.kinds_count = tile_kinds
-	sequence_generator.reset_sequence()
+	_reset_next_queue()
 
 func _set_up_array():
 	if field_size.x > 4 and field_size.y > 4:
@@ -152,3 +155,49 @@ func _set_up_timers():
 	_flash_timer.one_shot = true
 	_flash_timer.wait_time = flash_time
 	add_child(_flash_timer)
+	
+	_interval_timer.connect("timeout", Callable(self, "_spawn_triad"))
+	_interval_timer.one_shot = true
+	_interval_timer.wait_time = interval_time
+	add_child(_interval_timer)
+
+func _reset_next_queue():
+	sequence_generator.kinds_count = tile_kinds
+	sequence_generator.reset_sequence()
+	_current_triad = sequence_generator.get_sequence(3)
+	_next_queue = []
+	for i in next_queue_length:
+		_next_queue.push_front(sequence_generator.get_sequence(3))
+
+func _check_for_matches():
+	for i in field_size.x:
+		for j in field_size.y:
+			if _block_matrix[i][j] != null:
+				var _not_on_horiz_edge = i > 0 && i < (field_size.x - 1)
+				var _not_on_vert_edge = j > 0 && j < (field_size.y - 1)
+				var current_kind = _block_matrix[i][j].kind
+				if _not_on_horiz_edge:
+					if _block_matrix[i-1][j] != null && _block_matrix[i+1][j] != null:
+						if _block_matrix[i-1][j].kind == current_kind && _block_matrix[i+1][j].kind == current_kind:
+							_block_matrix[i-1][j].add_to_group("matched")
+							_block_matrix[i][j].add_to_group("matched")
+							_block_matrix[i+1][j].add_to_group("matched")
+
+				if _not_on_vert_edge:
+					if _block_matrix[i][j-1] != null && _block_matrix[i][j+1] != null:
+						if _block_matrix[i][j-1].kind == current_kind && _block_matrix[i][j+1].kind == current_kind:
+							_block_matrix[i][j-1].add_to_group("matched")
+							_block_matrix[i][j].add_to_group("matched")
+							_block_matrix[i][j+1].add_to_group("matched")
+
+				if _not_on_horiz_edge and _not_on_vert_edge and allow_diagonal_matches:
+					if _block_matrix[i-1][j-1] != null && _block_matrix[i+1][j+1] != null:
+						if _block_matrix[i-1][j-1].kind == current_kind && _block_matrix[i+1][j+1].kind == current_kind:
+							_block_matrix[i-1][j-1].add_to_group("matched")
+							_block_matrix[i][j].add_to_group("matched")
+							_block_matrix[i+1][j+1].add_to_group("matched")
+					if _block_matrix[i+1][j-1] != null && _block_matrix[i-1][j+1] != null:
+						if _block_matrix[i+1][j-1].kind == current_kind && _block_matrix[i-1][j+1].kind == current_kind:
+							_block_matrix[i+1][j-1].add_to_group("matched")
+							_block_matrix[i][j].add_to_group("matched")
+							_block_matrix[i-1][j+1].add_to_group("matched")
