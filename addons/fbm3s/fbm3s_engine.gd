@@ -179,7 +179,7 @@ func get_block_texture(which: int) -> AtlasTexture:
 	return result
 
 func slide_cursor(what_dir: Direction) -> bool:
-	if _cursor_location.x + what_dir in range(field_size.x):
+	if _cursor_location.x + what_dir in range(field_size.x) and _cursor.visible == true:
 		if _block_matrix[_cursor_location.x + what_dir][_cursor_location.y] == null:
 			_cursor_location.x += what_dir
 			if lockdown_style == LockTimerBehavior.MOVE_RESET:
@@ -189,36 +189,40 @@ func slide_cursor(what_dir: Direction) -> bool:
 	return false
 
 func rotate_triad_down():
-	_current_triad.push_front(_current_triad.pop_back())
-	if lockdown_style == LockTimerBehavior.MOVE_RESET:
-		_lock_timer.start()
-	_update_cursor()
+	if _cursor.visible == true:
+		_current_triad.push_front(_current_triad.pop_back())
+		if lockdown_style == LockTimerBehavior.MOVE_RESET:
+			_lock_timer.start()
+		_update_cursor()
 
 func rotate_triad_up():
-	_current_triad.push_back(_current_triad.pop_front())
-	if lockdown_style == LockTimerBehavior.MOVE_RESET:
-		_lock_timer.start()
-	_update_cursor()
+	if _cursor.visible == true:
+		_current_triad.push_back(_current_triad.pop_front())
+		if lockdown_style == LockTimerBehavior.MOVE_RESET:
+			_lock_timer.start()
+		_update_cursor()
 
 func start_soft_drop():
-	if use_soft_drop:
+	if use_soft_drop and _cursor.visible == true:
 		_is_soft_dropping = true
 		_drop_cursor()
 
 func stop_soft_drop():
-	_is_soft_dropping = false
-	_grav_timer.start(_grav_timer.time_left * 2.0)
+	if use_soft_drop and _cursor.visible == true:
+		_is_soft_dropping = false
+		_grav_timer.start(_grav_timer.time_left * 2.0)
 
 ## Performs a hard drop, moving the triad to the ground instantly.
 ## The behavior of the triad depends on [member hard_drop_style].
 ##
 ## Returns the number of rows dropped.
 func hard_drop() -> int:
-	if hard_drop_style != HardDropBehavior.NONE:
+	if hard_drop_style == HardDropBehavior.NONE or not _cursor.visible:
 		return 0
 	else:
 		var column = _block_matrix[_cursor_location.x]
-		var lowest = column.find(Node)
+		var occupied = _get_occupancy_array(column)
+		var lowest = occupied.find(true)
 		var target = lowest - 1 if (lowest >= 0) else field_size.y - 1
 		var result = target - _cursor_location.y
 		_cursor_location.y = target
@@ -352,13 +356,13 @@ func _drop_cursor():
 		_lock_down()
 
 func _activate_lockdown_timer():
-	_is_soft_dropping = false
 	if _lock_timer.paused == true:
 		_lock_timer.paused = false
 	else:
 		_lock_timer.start()
 
 func _lock_down():
+	_is_soft_dropping = false
 	_cursor.hide()
 	if _cursor_location.y >= 0:
 		var all_placed = true
@@ -394,6 +398,14 @@ func _combo_check():
 	if _combo > 0:
 		combo_ended.emit()
 	_interval_timer.start()
+
+func _get_occupancy_array(col: int) -> Array[bool]:
+	var occupied: Array[bool] = []
+	occupied.resize(field_size.y)
+	occupied.fill(false)
+	for row in field_size.y:
+		occupied[row] = false if _block_matrix[col][row] == null else true
+	return occupied
 
 func _check_for_matches() -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
@@ -434,11 +446,7 @@ func _cascade_blocks():
 		var block_bottom = -1
 		var block_top = -1
 		var move_made = true
-		var occupied: Array[bool] = []
-		occupied.resize(field_size.y)
-		occupied.fill(false)
-		for row in field_size.y:
-			occupied[row] = false if _block_matrix[col][row] == null else true
+		var occupied = _get_occupancy_array(col)
 		while move_made:
 			move_made = false
 			lowest_space = occupied.rfind(false)
