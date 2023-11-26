@@ -1,0 +1,71 @@
+[gd_scene load_steps=6 format=3 uid="uid://c4st6a0e5s3bq"]
+
+[ext_resource type="Script" path="res://addons/fbm3s/fbm3s_engine.gd" id="1_cthcs"]
+[ext_resource type="Script" path="res://example/game.gd" id="1_tgsxh"]
+[ext_resource type="Script" path="res://addons/fbm3s/sequence_generators/sequence_generator.gd" id="2_mn5jd"]
+[ext_resource type="PackedScene" uid="uid://df3bm4s6t1mju" path="res://example/next_piece_display.tscn" id="4_f75yi"]
+
+[sub_resource type="Resource" id="Resource_tuh4t"]
+script = ExtResource("2_mn5jd")
+
+[node name="game" type="Node"]
+script = ExtResource("1_tgsxh")
+
+[node name="Layout" type="HBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="NextQueue" type="VBoxContainer" parent="Layout"]
+layout_mode = 2
+size_flags_horizontal = 10
+size_flags_vertical = 4
+
+[node name="Label" type="Label" parent="Layout/NextQueue"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "NEXT"
+
+[node name="NextPiece1" parent="Layout/NextQueue" instance=ExtResource("4_f75yi")]
+layout_mode = 2
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="SubViewport" type="SubViewport" parent="Layout/SubViewportContainer"]
+handle_input_locally = false
+size = Vector2i(960, 1080)
+render_target_update_mode = 4
+
+[node name="Engine" type="Node2D" parent="Layout/SubViewportContainer/SubViewport"]
+unique_name_in_owner = true
+script = ExtResource("1_cthcs")
+field_size = Vector2i(7, 13)
+sequence_generator = SubResource("Resource_tuh4t")
+next_queue_length = 2
+
+[node name="RichTextLabel" type="RichTextLabel" parent="Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "TEST CRAP →"
+fit_content = true
+scroll_active = false
+
+[node name="playButton" type="Button" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.5
+offset_top = -15.5
+offset_right = 20.5
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 6
+size_flags_vertical = 4
+text = "Play"
