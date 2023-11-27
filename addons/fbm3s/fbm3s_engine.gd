@@ -248,10 +248,12 @@ func is_valid_coordinate(where: Vector2i) -> bool:
 	return where < field_size and where > Vector2i(0,0)
 
 func put_block_at(which: int, where: Vector2i, clobber := false) -> bool:
+	print("attempting putting ", which, " at ", where)
 	if is_valid_coordinate(where):
 		if _block_matrix[where.x][where.y] == null:
 			var new_block = _block_scene.instantiate() as Fbm3sBlock
 			_block_matrix[where.x][where.y] = new_block
+			print(where)
 			new_block.kind = which
 			new_block.texture = get_block_texture(which)
 			_playfield.add_child(new_block)
@@ -271,10 +273,16 @@ func put_block_at(which: int, where: Vector2i, clobber := false) -> bool:
 func _set_up_array():
 	if field_size.x > 4 and field_size.y > 4:
 		var result = []
-		result.resize(field_size.x)
+		#result.resize(field_size.x)
 		var column = []
 		column.resize(field_size.y)
-		result.fill(column.duplicate())
+		# silly me, thought Array.fill() would make a new duplicate at each column
+		# no, they were all pointing at the same damn column!
+		# you fucking dumb Belmont, no wonder the horizontal match check kept
+		# returning true!
+		#result.fill(column.duplicate())
+		for i in field_size.x:
+			result.append(column.duplicate())
 		print("made empty playfield matrix of size ", field_size.x, " x ", field_size.y)
 		return result
 	else:
@@ -321,7 +329,13 @@ func _spawn_triad():
 		_cursor_location.x = middle
 		_update_cursor()
 		_cursor.show()
-		_grav_timer.start()
+		if _cursor_location.y + 1 < field_size.y \
+		  and _block_matrix[_cursor_location.x][_cursor_location.y + 1] == null:
+			_grav_timer.start()
+		elif lockdown_style != LockTimerBehavior.INSTANT_LOCK:
+			_activate_lockdown_timer()
+		else:
+			_lock_down()
 	else:
 		top_out.emit()
 
@@ -343,8 +357,8 @@ func _drop_cursor():
 			_lock_timer.paused = true
 		LockTimerBehavior.GRAV_RESET, LockTimerBehavior.MOVE_RESET:
 			_lock_timer.stop()
-	if _block_matrix[_cursor_location.x][_cursor_location.y + 1] == null \
-	  and _cursor_location.y + 1 < field_size.y:
+	if _cursor_location.y + 1 < field_size.y \
+	  and _block_matrix[_cursor_location.x][_cursor_location.y + 1] == null:
 		if _is_soft_dropping:
 			soft_drop_row.emit()
 			_grav_timer.start(gravity_time / 2.0)
@@ -368,8 +382,8 @@ func _lock_down():
 		var all_placed = true
 		for i in _current_triad.size():
 			var loc = _cursor_location
-			loc.y -= 2 - i
-			all_placed = all_placed and put_block_at(_current_triad[i],loc)
+			loc.y -= i
+			all_placed = all_placed and put_block_at(_current_triad[-i-1],loc)
 		if top_out_when == TopOutMode.ANY_OUTSIDE and not all_placed:
 			top_out.emit()
 		else:
@@ -397,6 +411,7 @@ func _combo_check():
 		matches = _check_for_matches()
 	if _combo > 0:
 		combo_ended.emit()
+	_advance_triad()
 	_interval_timer.start()
 
 func _get_occupancy_array(col: int) -> Array[bool]:
@@ -430,7 +445,7 @@ func _check_for_matches() -> Array[Vector2i]:
 
 func _check_and_mark_match(a: Vector2i, b:Vector2i, c:Vector2i, to_match, list):
 	if _block_matrix[a.x][a.y] != null and _block_matrix[c.x][c.y] != null:
-		if _block_matrix[a.x][a.y].kind == to_match and _block_matrix[a.x][a.y].kind == to_match:
+		if _block_matrix[a.x][a.y].kind == to_match and _block_matrix[c.x][c.y].kind == to_match:
 			_mark_matched(a, list)
 			_mark_matched(b, list)
 			_mark_matched(c, list)
