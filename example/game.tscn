@@ -1,8 +1,7 @@
-[gd_scene load_steps=6 format=3 uid="uid://c4st6a0e5s3bq"]
+[gd_scene load_steps=5 format=3 uid="uid://c4st6a0e5s3bq"]
 
 [ext_resource type="Script" path="res://addons/fbm3s/fbm3s_engine.gd" id="1_cthcs"]
 [ext_resource type="Script" path="res://example/game.gd" id="1_tgsxh"]
-[ext_resource type="PackedScene" uid="uid://df3bm4s6t1mju" path="res://example/next_piece_display.tscn" id="4_f75yi"]
 [ext_resource type="Script" path="res://addons/fbm3s/sequence_generators/bag_generator.gd" id="4_xjccb"]
 
 [sub_resource type="Resource" id="Resource_bexy0"]
@@ -29,9 +28,6 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "NEXT"
 
-[node name="NextPiece1" parent="Layout/NextQueue" instance=ExtResource("4_f75yi")]
-layout_mode = 2
-
 [node name="SubViewportContainer" type="SubViewportContainer" parent="Layout"]
 layout_mode = 2
 
@@ -44,10 +40,8 @@ render_target_update_mode = 4
 unique_name_in_owner = true
 script = ExtResource("1_cthcs")
 field_size = Vector2i(7, 13)
-top_out_when = 0
 sequence_generator = SubResource("Resource_bexy0")
-next_queue_length = 2
-lock_time = 0.25
+next_queue_length = 4
 
 [node name="RichTextLabel" type="RichTextLabel" parent="Layout"]
 layout_mode = 2
@@ -72,6 +66,15 @@ grow_vertical = 2
 size_flags_horizontal = 6
 size_flags_vertical = 4
 text = "Play"
+
+[node name="Label" type="Label" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -51.0
+offset_right = 690.0
+grow_vertical = 0
+text = "Falling Blocks Match Three System for Godot"
 
 [connection signal="combo_ended" from="Layout/SubViewportContainer/SubViewport/Engine" to="." method="_on_engine_combo_ended"]
 [connection signal="match_made" from="Layout/SubViewportContainer/SubViewport/Engine" to="." method="_on_engine_match_made"]

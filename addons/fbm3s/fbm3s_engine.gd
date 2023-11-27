@@ -85,15 +85,15 @@ const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 @export var lockdown_style := LockTimerBehavior.GRAV_RESET
 @export_subgroup("Timers")
 ## Time it takes for the triad to drop down a single row from gravity.
-@export_range(0.05, 1.5, 0.05, "suffix:s") var gravity_time = 0.75
+@export_range(0.05, 1.5, 0.05, "suffix:s") var initial_gravity_time = 0.75
 ## The time that the triad can still move and rotate after hitting bottom.
 ## Ignored if Lockdown Style is Instant Lock.
-@export_range(0.05, 0.25, 0.01, "suffix:s") var lock_time = 0.1
+@export_range(0.05, 0.25, 0.01, "suffix:s") var initial_lock_time = 0.1
 ## How long after a match until the blocks cascade and another match check is made.
 ## This should cover the blocks' flashing and disappearing animations.
-@export_range(0.1, 2, 0.1, "suffix:s") var flash_time = 0.5
+@export_range(0.1, 2, 0.1, "suffix:s") var initial_flash_time = 0.5
 ## The delay between phases.
-@export_range(0.05, 0.1, 0.01, "suffix:s") var interval_time = 0.07
+@export_range(0.05, 0.1, 0.01, "suffix:s") var initial_interval_time = 0.07
 
 var cursor_location: Vector2i:
 	get: return _cursor_location
@@ -104,6 +104,18 @@ var current_triad: Array:
 var next_queue: Array:
 	get: return _next_queue
 	set(v): pass
+var gravity_time: float:
+	get: return _normal_grav_time
+	set(v):
+		_normal_grav_time = v
+		_soft_drop_grav_time = v/2
+var lock_time: float:
+	get: return _lock_timer.wait_time
+	set(v): _lock_timer.wait_time = v
+var interval_time: float:
+	get: return _interval_timer.wait_time
+	set(v): _interval_timer.wait_time = v
+var flash_time: float
 var grav_time_left: float:
 	get: return _grav_timer.time_left
 	set(v): pass
@@ -126,6 +138,8 @@ var _grav_timer = Timer.new()
 var _lock_timer = Timer.new()
 var _flash_timer = Timer.new()
 var _interval_timer = Timer.new()
+var _normal_grav_time: float
+var _soft_drop_grav_time: float
 var _block_matrix = []
 var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
@@ -168,7 +182,7 @@ func _ready():
 	# All the dependency checks passed? Good, let's go on
 	connect("top_out", Callable(self, "_topped_out"))
 	add_child(_cursor)
-	_set_up_timers()
+	_create_timers()
 	_reset_next_queue()
 
 ## Gets an [AtlasTexture] representing the block with the kind [param which].
@@ -208,11 +222,14 @@ func rotate_triad_up():
 
 func start_soft_drop():
 	if use_soft_drop and _cursor.visible == true:
-		_is_soft_dropping = true
-		_drop_cursor()
+		if _is_space_below():
+			_is_soft_dropping = true
+			_drop_cursor()
+		else:
+			_lock_down()
 
 func stop_soft_drop():
-	if use_soft_drop and _cursor.visible == true:
+	if _is_soft_dropping == true and use_soft_drop and _cursor.visible == true:
 		_is_soft_dropping = false
 		_grav_timer.start(_grav_timer.time_left * 2.0)
 
@@ -224,8 +241,8 @@ func hard_drop() -> int:
 	if hard_drop_style == HardDropBehavior.NONE or not _cursor.visible:
 		return 0
 	else:
-		var column = _block_matrix[_cursor_location.x]
-		var occupied = _get_occupancy_array(column)
+		_grav_timer.stop()
+		var occupied = _get_occupancy_array(_cursor_location.x)
 		var lowest = occupied.find(true)
 		var target = lowest - 1 if (lowest >= 0) else field_size.y - 1
 		var result = target - _cursor_location.y
@@ -292,26 +309,24 @@ func _set_up_array():
 		push_error("Playfield too small, bailing out.")
 		return null
 
-func _set_up_timers():
+func _create_timers():
 	print("setting up timers")
 	_grav_timer.connect("timeout", Callable(self, "_drop_cursor"))
 	_grav_timer.one_shot = true
-	_grav_timer.wait_time = gravity_time
+	_grav_timer.wait_time = initial_gravity_time
 	add_child(_grav_timer)
 	
 	_lock_timer.connect("timeout", Callable(self, "_lock_down"))
 	_lock_timer.one_shot = true
-	_lock_timer.wait_time = lock_time
+	_lock_timer.wait_time = initial_lock_time
 	add_child(_lock_timer)
-	
-	_flash_timer.one_shot = true
-	_flash_timer.wait_time = flash_time
-	add_child(_flash_timer)
 	
 	_interval_timer.connect("timeout", Callable(self, "_spawn_triad"))
 	_interval_timer.one_shot = true
-	_interval_timer.wait_time = interval_time
+	_interval_timer.wait_time = initial_interval_time
 	add_child(_interval_timer)
+	
+	flash_time = initial_flash_time
 
 func _reset_next_queue():
 	sequence_generator.kinds_count = tile_kinds
@@ -322,6 +337,7 @@ func _reset_next_queue():
 		_next_queue.push_front(sequence_generator.get_sequence(3))
 
 func _spawn_triad():
+	_lock_timer.stop()
 	_combo = 0
 	var middle = floor(field_size.x / 2.0)
 	if _block_matrix[middle][0] == null:
@@ -340,7 +356,7 @@ func _spawn_triad():
 		else:
 			_lock_down()
 	else:
-		top_out.emit()
+		_top_out()
 
 func _advance_triad():
 	_current_triad = _next_queue.pop_back()
@@ -353,26 +369,25 @@ func _update_cursor():
 	_cursor.position = _playfield.tile_to_pixel(_cursor_location)
 
 func _is_space_below() -> bool:
-	if _cursor_location.y < field_size.y:
-		return _block_matrix[_cursor_location.x][_cursor_location.y+1] != null
+	if _cursor_location.y < field_size.y - 1:
+		return _block_matrix[_cursor_location.x][_cursor_location.y+1] == null
 	else:
 		return false
 
 func _drop_cursor():
-	_cursor_location.y += 1
-	_update_cursor()
-	match lockdown_style:
-		LockTimerBehavior.ENTRY_RESET:
-			_lock_timer.paused = true
-		LockTimerBehavior.GRAV_RESET, LockTimerBehavior.MOVE_RESET:
-			_lock_timer.stop()
-	if _cursor_location.y + 1 < field_size.y \
-	  and _block_matrix[_cursor_location.x][_cursor_location.y + 1] == null:
+	if _is_space_below():
+		_cursor_location.y += 1
+		_update_cursor()
+		match lockdown_style:
+			LockTimerBehavior.ENTRY_RESET:
+				_lock_timer.paused = true
+			LockTimerBehavior.GRAV_RESET, LockTimerBehavior.MOVE_RESET:
+				_lock_timer.stop()
 		if _is_soft_dropping:
 			soft_drop_row.emit()
-			_grav_timer.start(gravity_time / 2.0)
+			_grav_timer.start(_soft_drop_grav_time)
 		else:
-			_grav_timer.start(gravity_time)
+			_grav_timer.start(_normal_grav_time)
 	elif lockdown_style != LockTimerBehavior.INSTANT_LOCK:
 		_activate_lockdown_timer()
 	else:
@@ -385,23 +400,24 @@ func _activate_lockdown_timer():
 		_lock_timer.start()
 
 func _lock_down():
-	_is_soft_dropping = false
-	_cursor.hide()
-	if _cursor_location.y >= 0:
-		var all_placed = true
-		for i in _current_triad.size():
-			var loc = _cursor_location
-			loc.y -= i
-			all_placed = all_placed and put_block_at(_current_triad[-i-1],loc)
-		if top_out_when == TopOutMode.ANY_OUTSIDE and not all_placed:
-			top_out.emit()
+	if _cursor.visible:
+		_is_soft_dropping = false
+		_lock_timer.stop()
+		_cursor.hide()
+		if _cursor_location.y >= 0:
+			var all_placed = true
+			for i in _current_triad.size():
+				var loc = _cursor_location
+				loc.y -= i
+				all_placed = all_placed and put_block_at(_current_triad[-i-1],loc)
+			if top_out_when == TopOutMode.ANY_OUTSIDE and not all_placed:
+				_top_out()
+			else:
+				if _before_match_check.is_valid():
+					_before_match_check.call()
+				_combo_check()
 		else:
-			_cascade_blocks() # in case things get screwed up
-			if _before_match_check.is_valid():
-				_before_match_check.call()
-			_combo_check()
-	else:
-		top_out.emit()
+			_top_out()
 
 func _combo_check():
 	var matches = _check_for_matches()
@@ -491,7 +507,13 @@ func _cascade_blocks():
 			if _block_matrix[col][row] != null:
 				_block_matrix[col][row].move_to(_playfield.tile_to_pixel(Vector2(col, row)))
 
-func _topped_out(): _game_active = false
+func _top_out():
+	print("topped out!")
+	_grav_timer.stop()
+	_lock_timer.stop()
+	_interval_timer.stop()
+	_game_active = false
+	top_out.emit()
 
 class Cursor extends Node2D:
 	var top_sprite = Sprite2D.new()
