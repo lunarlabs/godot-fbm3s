@@ -182,7 +182,11 @@ func slide_cursor(what_dir: Direction) -> bool:
 	if _cursor_location.x + what_dir in range(field_size.x) and _cursor.visible == true:
 		if _block_matrix[_cursor_location.x + what_dir][_cursor_location.y] == null:
 			_cursor_location.x += what_dir
-			if lockdown_style == LockTimerBehavior.MOVE_RESET:
+			# TODO: Lockdown timer still runs if 
+			if _is_space_below() and _grav_timer.is_stopped():
+				_grav_timer.start()
+			elif not _is_space_below() \
+			  and lockdown_style == LockTimerBehavior.MOVE_RESET:
 				_lock_timer.start()
 			_update_cursor()
 			return true
@@ -191,14 +195,14 @@ func slide_cursor(what_dir: Direction) -> bool:
 func rotate_triad_down():
 	if _cursor.visible == true:
 		_current_triad.push_front(_current_triad.pop_back())
-		if lockdown_style == LockTimerBehavior.MOVE_RESET:
+		if not _is_space_below() and lockdown_style == LockTimerBehavior.MOVE_RESET:
 			_lock_timer.start()
 		_update_cursor()
 
 func rotate_triad_up():
 	if _cursor.visible == true:
 		_current_triad.push_back(_current_triad.pop_front())
-		if lockdown_style == LockTimerBehavior.MOVE_RESET:
+		if not _is_space_below() and lockdown_style == LockTimerBehavior.MOVE_RESET:
 			_lock_timer.start()
 		_update_cursor()
 
@@ -253,7 +257,6 @@ func put_block_at(which: int, where: Vector2i, clobber := false) -> bool:
 		if _block_matrix[where.x][where.y] == null:
 			var new_block = _block_scene.instantiate() as Fbm3sBlock
 			_block_matrix[where.x][where.y] = new_block
-			print(where)
 			new_block.kind = which
 			new_block.texture = get_block_texture(which)
 			_playfield.add_child(new_block)
@@ -349,6 +352,12 @@ func _update_cursor():
 	_cursor.bottom_sprite.texture = get_block_texture(_current_triad[2])
 	_cursor.position = _playfield.tile_to_pixel(_cursor_location)
 
+func _is_space_below() -> bool:
+	if _cursor_location.y < field_size.y:
+		return _block_matrix[_cursor_location.x][_cursor_location.y+1] != null
+	else:
+		return false
+
 func _drop_cursor():
 	_cursor_location.y += 1
 	_update_cursor()
@@ -387,6 +396,7 @@ func _lock_down():
 		if top_out_when == TopOutMode.ANY_OUTSIDE and not all_placed:
 			top_out.emit()
 		else:
+			_cascade_blocks() # in case things get screwed up
 			if _before_match_check.is_valid():
 				_before_match_check.call()
 			_combo_check()
@@ -401,7 +411,7 @@ func _combo_check():
 		if _before_flash.is_valid():
 			_before_flash.call()
 		get_tree().call_group("matched", "flash")
-		await _flash_timer.timeout
+		await get_tree().create_timer(flash_time).timeout
 		#if the block flash doesn't include queue_free, this will clean em up
 		get_tree().call_group("matched", "queue_free")
 		#and if these blocks are still awaiting "freedom," let's pop em off the matrix:
@@ -424,18 +434,21 @@ func _get_occupancy_array(col: int) -> Array[bool]:
 
 func _check_for_matches() -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	for i in range(1, field_size.x - 1):
-		for j in range(1, field_size.y - 1):
+	for i in field_size.x:
+		for j in field_size.y:
 			if _block_matrix[i][j] != null:
 				var current_kind = _block_matrix[i][j].kind
 				#check horizontally
-				_check_and_mark_match(Vector2i(i - 1, j), \
-				  Vector2i(i, j), Vector2i(i + 1, j), current_kind, result)
+				if i in range(1, field_size.x - 1):
+					_check_and_mark_match(Vector2i(i - 1, j), \
+					  Vector2i(i, j), Vector2i(i + 1, j), current_kind, result)
 				#check vertically
-				_check_and_mark_match(Vector2i(i, j - 1), \
-				  Vector2i(i, j), Vector2i(i, j + 1), current_kind, result)
+				if j in range(1, field_size.y - 1):
+					_check_and_mark_match(Vector2i(i, j - 1), \
+					  Vector2i(i, j), Vector2i(i, j + 1), current_kind, result)
 
-				if allow_diagonal_matches:
+				if allow_diagonal_matches and i in range(1, field_size.x - 1) \
+				  and j in range(1, field_size.y - 1):
 					_check_and_mark_match(Vector2i(i - 1, j - 1), \
 					  Vector2i(i, j), Vector2i(i + 1, j + 1), current_kind, result)
 					_check_and_mark_match(Vector2i(i + 1, j - 1), \
@@ -469,10 +482,11 @@ func _cascade_blocks():
 			if block_bottom >= 0:
 				var to_move = lowest_space - block_bottom
 				move_made = true
-				block_top=(occupied.rfind(false, block_bottom))+1
+				block_top=(occupied.rfind(false, block_bottom))
 				for i in range(block_bottom, block_top, -1):
 					_block_matrix[col][i+to_move] = _block_matrix[col][i]
 					_block_matrix[col][i] = null
+				occupied = _get_occupancy_array(col)
 		for row in field_size.y:
 			if _block_matrix[col][row] != null:
 				_block_matrix[col][row].move_to(_playfield.tile_to_pixel(Vector2(col, row)))

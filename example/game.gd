@@ -18,6 +18,7 @@ func _ready():
 func _process(delta):
 	if engine.game_active:
 		active_time += delta
+		process_input()
 	debug_label.text = ""
 	debug_label.clear()
 	debug_label.add_text("Game time: %0.3f\n" % active_time)
@@ -31,9 +32,17 @@ func _process(delta):
 	debug_label.add_text("Cursor: %.v\n" % engine.cursor_location)
 	debug_label.add_text("Grav: %0.3f\n" % engine.grav_time_left)
 	debug_label.add_text("Lock: %0.3f\n" % engine.lock_time_left)
-	debug_label.add_text("Flash: %0.3f\n" % engine.flash_time_left)
 	debug_label.add_text("Interval: %0.3f" % engine.interval_time_left)
 
+func process_input():
+	if Input.is_action_just_pressed("move_left"):
+		engine.slide_cursor(Fbm3sEngine.Direction.LEFT)
+	elif Input.is_action_just_pressed("move_right"):
+		engine.slide_cursor(Fbm3sEngine.Direction.RIGHT)
+	elif Input.is_action_just_pressed("rotate_up"):
+		engine.rotate_triad_up()
+	elif Input.is_action_just_pressed("rotate_down"):
+		engine.rotate_triad_down()
 
 func _on_play_button_pressed():
 	play_button.hide()
@@ -48,11 +57,18 @@ func _on_play_button_pressed():
 
 
 func _on_engine_combo_ended():
-	pass # Replace with function body.
+	is_comboing = false
 
 
 func _on_engine_match_made(blocks, combo):
-	pass # Replace with function body.
+	is_comboing = true
+	erased += blocks
+	current_combo = combo
+	max_combo = max(combo, max_combo)
+	if combo > 1:
+		current_combo_str += ", " + str(blocks)
+	else:
+		current_combo_str = str(blocks)
 
 
 func _on_engine_soft_drop_row():

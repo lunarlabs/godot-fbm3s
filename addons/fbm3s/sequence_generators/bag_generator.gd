@@ -1,9 +1,9 @@
 class_name BagGenerator
 extends SequenceGenerator
 
-@export_range(1,10,4) var type_instances_per_bag
+@export_range(1,10) var type_instances_per_bag = 4
 
-var _sequence = []
+var _sequence: Array[int] = []
 
 func get_sequence(length: int) -> Array[int]:
 	var result: Array[int] = []
@@ -20,7 +20,7 @@ func get_sequence(length: int) -> Array[int]:
 		
 func _generate_new_bag():
 	print("shuffling new bag")
-	var result = []
+	var result: Array[int] = []
 	for i in kinds_count:
 		var j = []
 		j.resize(type_instances_per_bag)

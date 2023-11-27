@@ -2,11 +2,12 @@
 
 [ext_resource type="Script" path="res://addons/fbm3s/fbm3s_engine.gd" id="1_cthcs"]
 [ext_resource type="Script" path="res://example/game.gd" id="1_tgsxh"]
-[ext_resource type="Script" path="res://addons/fbm3s/sequence_generators/sequence_generator.gd" id="2_mn5jd"]
 [ext_resource type="PackedScene" uid="uid://df3bm4s6t1mju" path="res://example/next_piece_display.tscn" id="4_f75yi"]
+[ext_resource type="Script" path="res://addons/fbm3s/sequence_generators/bag_generator.gd" id="4_xjccb"]
 
-[sub_resource type="Resource" id="Resource_tuh4t"]
-script = ExtResource("2_mn5jd")
+[sub_resource type="Resource" id="Resource_bexy0"]
+script = ExtResource("4_xjccb")
+type_instances_per_bag = 4
 
 [node name="game" type="Node"]
 script = ExtResource("1_tgsxh")
@@ -44,8 +45,9 @@ unique_name_in_owner = true
 script = ExtResource("1_cthcs")
 field_size = Vector2i(7, 13)
 top_out_when = 0
-sequence_generator = SubResource("Resource_tuh4t")
+sequence_generator = SubResource("Resource_bexy0")
 next_queue_length = 2
+lock_time = 0.25
 
 [node name="RichTextLabel" type="RichTextLabel" parent="Layout"]
 layout_mode = 2
