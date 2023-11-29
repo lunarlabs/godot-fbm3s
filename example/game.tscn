@@ -40,6 +40,8 @@ render_target_update_mode = 4
 unique_name_in_owner = true
 script = ExtResource("1_cthcs")
 field_size = Vector2i(7, 13)
+triad_entry_row = 0
+top_out_when = 0
 sequence_generator = SubResource("Resource_bexy0")
 next_queue_length = 4
 

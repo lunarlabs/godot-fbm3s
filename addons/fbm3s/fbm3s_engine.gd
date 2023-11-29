@@ -85,15 +85,15 @@ const DEFAULT_BLOCK_SCENE = "res://addons/fbm3s/fbm3s_block.tscn"
 @export var lockdown_style := LockTimerBehavior.GRAV_RESET
 @export_subgroup("Timers")
 ## Time it takes for the triad to drop down a single row from gravity.
-@export_range(0.05, 1.5, 0.05, "suffix:s") var initial_gravity_time = 0.75
+@export_range(0.05, 5, 0.05, "suffix:s") var initial_gravity_time = 0.75
 ## The time that the triad can still move and rotate after hitting bottom.
 ## Ignored if Lockdown Style is Instant Lock.
-@export_range(0.05, 0.25, 0.01, "suffix:s") var initial_lock_time = 0.1
+@export_range(0.05, 2, 0.01, "suffix:s") var initial_lock_time = 0.1
 ## How long after a match until the blocks cascade and another match check is made.
 ## This should cover the blocks' flashing and disappearing animations.
 @export_range(0.1, 2, 0.1, "suffix:s") var initial_flash_time = 0.5
 ## The delay between phases.
-@export_range(0.05, 0.1, 0.01, "suffix:s") var initial_interval_time = 0.07
+@export_range(0.05, 0.5, 0.01, "suffix:s") var initial_interval_time = 0.07
 
 var cursor_location: Vector2i:
 	get: return _cursor_location
@@ -180,7 +180,6 @@ func _ready():
 	if _block_matrix == null:
 		return
 	# All the dependency checks passed? Good, let's go on
-	connect("top_out", Callable(self, "_topped_out"))
 	add_child(_cursor)
 	_create_timers()
 	_reset_next_queue()
@@ -231,7 +230,8 @@ func start_soft_drop():
 func stop_soft_drop():
 	if _is_soft_dropping == true and use_soft_drop and _cursor.visible == true:
 		_is_soft_dropping = false
-		_grav_timer.start(_grav_timer.time_left * 2.0)
+		if _is_space_below():
+			_grav_timer.start(_grav_timer.time_left * 2.0)
 
 ## Performs a hard drop, moving the triad to the ground instantly.
 ## The behavior of the triad depends on [member hard_drop_style].
@@ -383,17 +383,21 @@ func _drop_cursor():
 				_lock_timer.paused = true
 			LockTimerBehavior.GRAV_RESET, LockTimerBehavior.MOVE_RESET:
 				_lock_timer.stop()
-		if _is_soft_dropping:
-			soft_drop_row.emit()
-			_grav_timer.start(_soft_drop_grav_time)
+		if _is_space_below():
+			if _is_soft_dropping:
+				soft_drop_row.emit()
+				_grav_timer.start(_soft_drop_grav_time)
+			else:
+				_grav_timer.start(_normal_grav_time)
+		elif lockdown_style != LockTimerBehavior.INSTANT_LOCK:
+			_activate_lockdown_timer()
 		else:
-			_grav_timer.start(_normal_grav_time)
-	elif lockdown_style != LockTimerBehavior.INSTANT_LOCK:
-		_activate_lockdown_timer()
+			_lock_down()
 	else:
 		_lock_down()
 
 func _activate_lockdown_timer():
+	_grav_timer.stop()
 	if _lock_timer.paused == true:
 		_lock_timer.paused = false
 	else:
@@ -402,6 +406,7 @@ func _activate_lockdown_timer():
 func _lock_down():
 	if _cursor.visible:
 		_is_soft_dropping = false
+		_grav_timer.stop()
 		_lock_timer.stop()
 		_cursor.hide()
 		if _cursor_location.y >= 0:
@@ -411,6 +416,7 @@ func _lock_down():
 				loc.y -= i
 				all_placed = all_placed and put_block_at(_current_triad[-i-1],loc)
 			if top_out_when == TopOutMode.ANY_OUTSIDE and not all_placed:
+				print("This should only appear when the top out mode is ANY")
 				_top_out()
 			else:
 				if _before_match_check.is_valid():
