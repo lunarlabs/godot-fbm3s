@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Falling Blocks Match Three System"
 run/main_scene="res://example/game.tscn"
-config/features=PackedStringArray("4.1", "Mobile")
+config/features=PackedStringArray("4.2", "Mobile")
 config/icon="res://icon.svg"
 
 [display]

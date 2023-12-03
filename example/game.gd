@@ -28,12 +28,13 @@ func _process(delta):
 	if engine.game_active:
 		active_time += delta
 		process_input()
-	for i in next_queue.size():
-		var piece = next_queue[i]
-		var to_get = engine.next_queue[-(i + 1)]
-		piece.top.texture = engine.get_block_texture(to_get[0])
-		piece.middle.texture = engine.get_block_texture(to_get[1])
-		piece.bottom.texture = engine.get_block_texture(to_get[2])
+	if not engine.next_queue.is_empty():
+		for i in next_queue.size():
+			var piece = next_queue[i]
+			var to_get = engine.next_queue[-(i + 1)]
+			piece.top.texture = engine.get_block_texture(to_get[0])
+			piece.middle.texture = engine.get_block_texture(to_get[1])
+			piece.bottom.texture = engine.get_block_texture(to_get[2])
 	debug_label.text = ""
 	debug_label.clear()
 	debug_label.add_text("Game time: %0.3f\n" % active_time)

@@ -182,7 +182,6 @@ func _ready():
 	# All the dependency checks passed? Good, let's go on
 	add_child(_cursor)
 	_create_timers()
-	_reset_next_queue()
 
 ## Gets an [AtlasTexture] representing the block with the kind [param which].
 func get_block_texture(which: int) -> AtlasTexture:
@@ -257,6 +256,7 @@ func hard_drop() -> int:
 
 func start_game():
 	_game_active = true
+	_reset_next_queue()
 	_spawn_triad()
 
 func reset_matrix(reset_queue := false):
