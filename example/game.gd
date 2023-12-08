@@ -3,6 +3,8 @@ extends Node
 @onready var engine = %Engine as Fbm3sEngine
 @onready var debug_label = $Layout/RichTextLabel
 @onready var play_button = $playButton
+@onready var pause_button = $PauseButton
+@onready var panic_button = $PanicButton
 var next_queue = []
 var active_time: float = 0.0
 var max_combo = 0
@@ -68,6 +70,8 @@ func process_input():
 
 func _on_play_button_pressed():
 	play_button.hide()
+	pause_button.disabled = false
+	panic_button.disabled = false
 	active_time = 0.0
 	max_combo = 0
 	erased = 0
@@ -98,4 +102,16 @@ func _on_engine_soft_drop_row():
 
 
 func _on_engine_top_out():
+	pause_button.disabled = true
+	panic_button.disabled = true
 	play_button.show()
+
+
+func _on_pause_button_toggled(toggled_on):
+	get_tree().paused = toggled_on
+	panic_button.disabled = toggled_on
+	pause_button.release_focus()
+
+
+func _on_panic_button_pressed():
+	engine.sanity_check()

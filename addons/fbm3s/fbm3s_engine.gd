@@ -183,6 +183,7 @@ func _ready():
 	# All the dependency checks passed? Good, let's go on
 	add_child(_ghost)
 	add_child(_cursor)
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	_ghost.modulate = Color(1, 1, 1, 0.5)
 	_create_timers()
 
@@ -195,7 +196,8 @@ func get_block_texture(which: int) -> AtlasTexture:
 
 func slide_cursor(what_dir: Direction) -> bool:
 	if _cursor_location.x + what_dir in range(field_size.x) and _cursor.visible == true:
-		if _block_matrix[_cursor_location.x + what_dir][_cursor_location.y] == null:
+		if _block_matrix[_cursor_location.x + what_dir][_cursor_location.y] == null\
+		  or _cursor_location.y < 0:
 			_cursor_location.x += what_dir
 			# TODO: Lockdown timer still runs if 
 			if _is_space_below() and _grav_timer.is_stopped():
@@ -267,6 +269,20 @@ func reset_matrix(reset_queue := false):
 	get_tree().call_group("blocks", "queue_free")
 	if reset_queue:
 		_reset_next_queue()
+
+func sanity_check():
+	if _game_active:
+		var block_list = get_tree().get_nodes_in_group("blocks").duplicate()
+		# we want an array of all blocks that are referenced in _block_matrix
+		var board_list = []
+		for arr in _block_matrix:
+			board_list.append_array(arr)
+		# remove empty spaces...
+		board_list = board_list.filter(func(node): return node != null)
+		for block in block_list:
+			if block not in board_list:
+				# It's a "zombie" block, so get rid of it.
+				block.queue_free()
 
 func is_valid_coordinate(where: Vector2i) -> bool:
 	return where < field_size and where > Vector2i(0,0)
@@ -408,10 +424,21 @@ func _drop_cursor():
 
 func _activate_lockdown_timer():
 	_grav_timer.stop()
-	if _lock_timer.paused == true:
-		_lock_timer.paused = false
-	else:
-		_lock_timer.start()
+	match lockdown_style:
+		LockTimerBehavior.INSTANT_LOCK:
+			_lock_down()
+		LockTimerBehavior.ENTRY_RESET:
+			if not _lock_timer.is_stopped():
+				if _lock_timer.paused:
+					_lock_timer.paused = false
+				else:
+					print("_activate_lockdown_timer called when _lock_timer running!")
+			else:
+				# Okay, so start() *doesn't* unpause a Timer. Aaaaarrgh...
+				_lock_timer.paused = false
+				_lock_timer.start()
+		_:
+			_lock_timer.start()
 
 func _lock_down():
 	if _cursor.visible:
@@ -455,6 +482,7 @@ func _combo_check():
 	if _combo > 0:
 		combo_ended.emit()
 	_advance_triad()
+	sanity_check()
 	_interval_timer.start()
 
 func _get_ground(col: int) -> int:
@@ -497,6 +525,7 @@ func _check_for_matches() -> Array[Vector2i]:
 func _check_and_mark_match(a: Vector2i, b:Vector2i, c:Vector2i, to_match, list):
 	if _block_matrix[a.x][a.y] != null and _block_matrix[c.x][c.y] != null:
 		if _block_matrix[a.x][a.y].kind == to_match and _block_matrix[c.x][c.y].kind == to_match:
+			print("match: ", a, b, c, to_match)
 			_mark_matched(a, list)
 			_mark_matched(b, list)
 			_mark_matched(c, list)
@@ -504,6 +533,7 @@ func _check_and_mark_match(a: Vector2i, b:Vector2i, c:Vector2i, to_match, list):
 func _mark_matched(loc: Vector2i, list: Array[Vector2i]):
 	_block_matrix[loc.x][loc.y].add_to_group("matched")
 	if loc not in list:
+		print("adding to flash list: ", loc)
 		list.append(loc)
 
 func _cascade_blocks():
