@@ -144,6 +144,7 @@ var _block_matrix = []
 var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
 var _cursor := Cursor.new(tile_size)
+var _ghost := Cursor.new(tile_size)
 var _current_triad = []
 var _next_queue = []
 var _is_soft_dropping := false
@@ -180,7 +181,9 @@ func _ready():
 	if _block_matrix == null:
 		return
 	# All the dependency checks passed? Good, let's go on
+	add_child(_ghost)
 	add_child(_cursor)
+	_ghost.modulate = Color(1, 1, 1, 0.5)
 	_create_timers()
 
 ## Gets an [AtlasTexture] representing the block with the kind [param which].
@@ -285,6 +288,7 @@ func put_block_at(which: int, where: Vector2i, clobber := false) -> bool:
 			_block_matrix[where.x][where.y].kind = which
 			return true
 		else:
+			push_warning("Space is occupied:", where)
 			return false
 	else:
 		return false
@@ -348,6 +352,7 @@ func _spawn_triad():
 		_cursor_location.x = middle
 		_update_cursor()
 		_cursor.show()
+		_ghost.show()
 		if _cursor_location.y + 1 < field_size.y \
 		  and _block_matrix[_cursor_location.x][_cursor_location.y + 1] == null:
 			_grav_timer.start()
@@ -367,6 +372,11 @@ func _update_cursor():
 	_cursor.mid_sprite.texture = get_block_texture(_current_triad[1])
 	_cursor.bottom_sprite.texture = get_block_texture(_current_triad[2])
 	_cursor.position = _playfield.tile_to_pixel(_cursor_location)
+	_ghost.top_sprite.texture = get_block_texture(_current_triad[0])
+	_ghost.mid_sprite.texture = get_block_texture(_current_triad[1])
+	_ghost.bottom_sprite.texture = get_block_texture(_current_triad[2])
+	_ghost.position = _playfield.tile_to_pixel(Vector2i(_cursor_location.x,\
+	  _get_ground(_cursor_location.x)))
 
 func _is_space_below() -> bool:
 	if _cursor_location.y < field_size.y - 1:
@@ -409,6 +419,7 @@ func _lock_down():
 		_grav_timer.stop()
 		_lock_timer.stop()
 		_cursor.hide()
+		_ghost.hide()
 		if _cursor_location.y >= 0:
 			var all_placed = true
 			for i in _current_triad.size():
@@ -445,6 +456,11 @@ func _combo_check():
 		combo_ended.emit()
 	_advance_triad()
 	_interval_timer.start()
+
+func _get_ground(col: int) -> int:
+	var occupied = _get_occupancy_array(col)
+	var lowest = occupied.find(true)
+	return lowest - 1 if (lowest >= 0) else field_size.y - 1
 
 func _get_occupancy_array(col: int) -> Array[bool]:
 	var occupied: Array[bool] = []
