@@ -21,8 +21,6 @@ func _ready():
 		var piece_display = next_piece_scene.instantiate()
 		next_queue.append(piece_display)
 		next_queue_container.add_child(piece_display)
-	engine.gravity_time = 2
-	engine.lock_time = 3
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

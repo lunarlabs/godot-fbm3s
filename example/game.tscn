@@ -46,6 +46,9 @@ sequence_generator = SubResource("Resource_bexy0")
 next_queue_length = 4
 hard_drop_style = 1
 lockdown_style = 1
+initial_gravity_time = 1.5
+initial_lock_time = 0.25
+initial_interval_time = 0.2
 
 [node name="RichTextLabel" type="RichTextLabel" parent="Layout"]
 layout_mode = 2

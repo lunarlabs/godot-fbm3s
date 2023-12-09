@@ -184,7 +184,8 @@ func _ready():
 	add_child(_ghost)
 	add_child(_cursor)
 	process_mode = Node.PROCESS_MODE_PAUSABLE
-	_ghost.modulate = Color(1, 1, 1, 0.5)
+	_ghost.modulate = Color(0.75, 0.75, 0.75, 0.5)
+	_cursor.modulate = Color(1.25, 1.25, 1.25)
 	_create_timers()
 
 ## Gets an [AtlasTexture] representing the block with the kind [param which].
@@ -199,12 +200,14 @@ func slide_cursor(what_dir: Direction) -> bool:
 		if _block_matrix[_cursor_location.x + what_dir][_cursor_location.y] == null\
 		  or _cursor_location.y < 0:
 			_cursor_location.x += what_dir
-			# TODO: Lockdown timer still runs if 
-			if _is_space_below() and _grav_timer.is_stopped():
-				_grav_timer.start()
-			elif not _is_space_below() \
-			  and lockdown_style == LockTimerBehavior.MOVE_RESET:
-				_lock_timer.start()
+			if _is_space_below():
+				if _grav_timer.is_stopped():
+					_grav_timer.start()
+				if not (_lock_timer.is_stopped() or _lock_timer.paused):
+					if lockdown_style == LockTimerBehavior.ENTRY_RESET:
+						_lock_timer.paused = true
+					else:
+						_lock_timer.stop()
 			_update_cursor()
 			return true
 	return false
@@ -228,6 +231,8 @@ func start_soft_drop():
 		if _is_space_below():
 			_is_soft_dropping = true
 			_drop_cursor()
+			if _is_space_below():
+				_grav_timer.start(_soft_drop_grav_time)
 		else:
 			_lock_down()
 
@@ -235,7 +240,8 @@ func stop_soft_drop():
 	if _is_soft_dropping == true and use_soft_drop and _cursor.visible == true:
 		_is_soft_dropping = false
 		if _is_space_below():
-			_grav_timer.start(_grav_timer.time_left * 2.0)
+			var reset_time = min(_soft_drop_grav_time, _grav_timer.time_left)
+			_grav_timer.start(reset_time * 2.0)
 
 ## Performs a hard drop, moving the triad to the ground instantly.
 ## The behavior of the triad depends on [member hard_drop_style].
@@ -283,6 +289,7 @@ func sanity_check():
 			if block not in board_list:
 				# It's a "zombie" block, so get rid of it.
 				block.queue_free()
+		_cascade_blocks()
 
 func is_valid_coordinate(where: Vector2i) -> bool:
 	return where < field_size and where > Vector2i(0,0)
@@ -331,6 +338,8 @@ func _set_up_array():
 
 func _create_timers():
 	print("setting up timers")
+	_normal_grav_time = initial_gravity_time
+	_soft_drop_grav_time = initial_gravity_time / 2
 	_grav_timer.connect("timeout", Callable(self, "_drop_cursor"))
 	_grav_timer.one_shot = true
 	_grav_timer.wait_time = initial_gravity_time
