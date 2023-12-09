@@ -294,6 +294,7 @@ func sanity_check():
 func is_valid_coordinate(where: Vector2i) -> bool:
 	return where < field_size and where > Vector2i(0,0)
 
+# TODO: Why the hell is this causing transient frame rate spikes???
 func put_block_at(which: int, where: Vector2i, clobber := false) -> bool:
 	print("attempting putting ", which, " at ", where)
 	if is_valid_coordinate(where):
@@ -491,7 +492,6 @@ func _combo_check():
 	if _combo > 0:
 		combo_ended.emit()
 	_advance_triad()
-	sanity_check()
 	_interval_timer.start()
 
 func _get_ground(col: int) -> int:
