@@ -143,8 +143,8 @@ var _soft_drop_grav_time: float
 var _block_matrix = []
 var _playfield: Fbm3sPlayfield = null
 var _cursor_location: Vector2i
-var _cursor := Cursor.new(tile_size)
-var _ghost := Cursor.new(tile_size)
+var _cursor := Cursor.new(tile_size, self)
+var _ghost := Cursor.new(tile_size, self)
 var _current_triad = []
 var _next_queue = []
 var _is_soft_dropping := false
@@ -394,15 +394,9 @@ func _advance_triad():
 	_next_queue.push_front(sequence_generator.get_sequence(3))
 
 func _update_cursor():
-	_cursor.top_sprite.texture = get_block_texture(_current_triad[0])
-	_cursor.mid_sprite.texture = get_block_texture(_current_triad[1])
-	_cursor.bottom_sprite.texture = get_block_texture(_current_triad[2])
-	_cursor.position = _playfield.tile_to_pixel(_cursor_location)
-	_ghost.top_sprite.texture = get_block_texture(_current_triad[0])
-	_ghost.mid_sprite.texture = get_block_texture(_current_triad[1])
-	_ghost.bottom_sprite.texture = get_block_texture(_current_triad[2])
-	_ghost.position = _playfield.tile_to_pixel(Vector2i(_cursor_location.x,\
-	  _get_ground(_cursor_location.x)))
+	_cursor.update(_current_triad, _playfield.tile_to_pixel(_cursor_location))
+	_ghost.update(_current_triad, _playfield.tile_to_pixel(Vector2i(\
+	  _cursor_location.x, _get_ground(_cursor_location.x))))
 
 func _is_space_below() -> bool:
 	if _cursor_location.y < field_size.y - 1:
@@ -580,10 +574,12 @@ class Cursor extends Node2D:
 	var top_sprite = Sprite2D.new()
 	var mid_sprite = Sprite2D.new()
 	var bottom_sprite = Sprite2D.new()
+	var engine: Node
 	var tile_size: int
 	
-	func _init(ts: int):
+	func _init(ts: int, eng: Node):
 		tile_size = ts
+		engine = eng
 		top_sprite.centered = false
 		mid_sprite.centered = false
 		bottom_sprite.centered = false
@@ -593,3 +589,9 @@ class Cursor extends Node2D:
 		mid_sprite.position = Vector2i(0, -1 * tile_size)
 		top_sprite.position = Vector2i(0, -2 * tile_size)
 		visible = false
+	
+	func update(triad, move_to: Vector2):
+		top_sprite.texture = engine.get_block_texture(triad[0])
+		mid_sprite.texture = engine.get_block_texture(triad[1])
+		bottom_sprite.texture = engine.get_block_texture(triad[2])
+		position = move_to
