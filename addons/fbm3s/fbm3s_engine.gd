@@ -291,6 +291,11 @@ func sanity_check():
 				block.queue_free()
 		_cascade_blocks()
 
+func skip_interval():
+	if _interval_timer.time_left > 0:
+		_interval_timer.stop()
+		_spawn_triad()
+
 func is_valid_coordinate(where: Vector2i) -> bool:
 	return where < field_size and where > Vector2i(0,0)
 
@@ -326,8 +331,7 @@ func _set_up_array():
 		column.resize(field_size.y)
 		# silly me, thought Array.fill() would make a new duplicate at each column
 		# no, they were all pointing at the same damn column!
-		# you fucking dumb Belmont, no wonder the horizontal match check kept
-		# returning true!
+		# no wonder the horizontal match check kept returning true!
 		#result.fill(column.duplicate())
 		for i in field_size.x:
 			result.append(column.duplicate())
