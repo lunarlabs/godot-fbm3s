@@ -10,4 +10,4 @@ func flash():
 
 func move_to(where: Vector2):
 	var tween = get_tree().create_tween()
-	tween.tween_property(self, "position", where, 0.05).set_trans(Tween.TRANS_BOUNCE)
+	tween.tween_property(self, "position", where, 0.1).set_trans(Tween.TRANS_BOUNCE)
