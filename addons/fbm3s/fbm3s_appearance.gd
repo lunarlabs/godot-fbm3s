@@ -1,0 +1,2 @@
+class_name Fbm3sAppearance
+extends Resource
