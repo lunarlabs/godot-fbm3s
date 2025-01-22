@@ -87,11 +87,6 @@ const DIAGONALS = [Vector2(1,1), Vector2(1,-1), Vector2(-1,-1), Vector2(-1,1)]
 ## The time that the triad can still move and rotate after hitting bottom.
 ## Ignored if Lockdown Style is Instant Lock.
 @export_range(0.05, 2, 0.01, "suffix:s") var initial_lock_time = 0.1
-## How long after a match until the blocks cascade and another match check is made.
-## This should cover the blocks' flashing and disappearing animations.
-@export_range(0.1, 2, 0.1, "suffix:s") var initial_flash_time = 0.5
-## The delay between phases.
-@export_range(0.05, 0.5, 0.01, "suffix:s") var initial_interval_time = 0.07
 #endregion
 
 var cursor_location: Vector2i:
